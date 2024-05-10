@@ -12,13 +12,18 @@ if [ -f "$MITMPROXY_PATH/mitmproxy-ca.pem" ]; then
 else
   f="$MITMPROXY_PATH"
 fi
-usermod -o \
-    -u $(stat -c "%u" "$f") \
-    -g $(stat -c "%g" "$f") \
-    mitmproxy
 
-if [[ "$1" = "mitmdump" || "$1" = "mitmproxy" || "$1" = "mitmweb" ]]; then
-  exec gosu mitmproxy "$@"
+uid=$(stat -c "%u" "$f")
+gid=$(stat -c "%g" "$f")
+
+if [[ "$1" = "mitmdump" || "$1" = "mitmproxy" || "$1" = "mitmweb" ]] && [ "$EUID" -eq 0 ]; then
+  if [ -w "/etc/passwd" ]; then
+    groupmod --non-unique --gid $gid mitmproxy
+    usermod  --non-unique --uid $uid mitmproxy
+    exec gosu mitmproxy "$@"
+  else
+    exec gosu "$uid:$gid" "$@"
+  fi
 else
   exec "$@"
 fi
